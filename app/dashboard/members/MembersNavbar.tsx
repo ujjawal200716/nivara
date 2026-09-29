@@ -18,7 +18,7 @@ interface MembersNavbarProps {
 
 export function MembersNavbar({ membersCount }: MembersNavbarProps) {
   return (
-    <header className="glass-header" style={{ height: '3.75rem', width: '100%', position: 'sticky', top: 0, zIndex: 40 }}>
+    <header className="glass-header" style={{ height: '3.75rem', width: '100%', position: 'sticky', top: 0, zIndex: 50 }}>
       <div className="container flex items-center justify-between h-full" style={{ padding: '0 1.25rem' }}>
         
         {/* Left: Branding & Back Button */}

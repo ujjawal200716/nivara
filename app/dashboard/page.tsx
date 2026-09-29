@@ -254,7 +254,6 @@ export default function UnifiedDashboard() {
         onOpenProfileModal={() => setShowEditProfileModal(true)}
         onOpenTour={() => {
           const el = document.getElementById("kai-concierge-widget");
-          el?.scrollIntoView({ behavior: 'smooth' });
           const btn = el?.querySelector("button");
           btn?.click();
         }}

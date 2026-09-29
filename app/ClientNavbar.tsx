@@ -15,7 +15,7 @@ export function ClientNavbar() {
   }
 
   return (
-    <header className="glass-header" style={{ height: "3.75rem" }}>
+    <header className="glass-header" style={{ height: "3.75rem", position: "sticky", top: 0, zIndex: 50, width: "100%" }}>
       <div className="container flex items-center justify-between h-full" style={{ padding: "0 1.25rem" }}>
         <div className="flex items-center gap-2">
           <Link href="/dashboard" className="flex items-center gap-2 font-semibold text-sm tracking-tight">

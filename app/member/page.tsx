@@ -1,53 +1,38 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { 
   Home, 
-  User, 
-  Send, 
+  Plus, 
   Clock, 
   CheckCircle2, 
-  AlertTriangle, 
-  Plus, 
-  Phone, 
-  Mail, 
-  Car, 
-  KeyRound, 
-  QrCode, 
-  Receipt, 
-  CreditCard, 
+  AlertCircle, 
   Sparkles, 
   ShieldAlert, 
-  Megaphone, 
-  HelpCircle, 
-  Calendar, 
-  Check, 
-  Star, 
-  Mic, 
-  Volume2, 
-  Camera, 
-  Droplets, 
   Wrench, 
-  Zap, 
+  Droplets, 
+  Car, 
   Trash2, 
-  ArrowRight, 
-  ExternalLink, 
-  LogOut, 
-  Share2, 
-  Copy, 
-  Vote,
-  Activity,
-  Layers,
-  PhoneCall
+  Search, 
+  Star, 
+  Send, 
+  User, 
+  ArrowRight,
+  ShieldCheck,
+  Check,
+  Zap,
+  Filter,
+  X,
+  Phone,
+  Quote,
+  Building,
+  Edit3
 } from "lucide-react";
-import { ThemeToggle } from "@/app/dashboard/ThemeToggle";
+import { MemberNavbar } from "./MemberNavbar";
 import { EditProfileModal, UserProfile } from "@/app/dashboard/EditProfileModal";
 import { SendProblemModal } from "@/app/dashboard/SendProblemModal";
 import { EmergencySOSModal } from "@/app/dashboard/EmergencySOSModal";
-import { WalkthroughConcierge } from "@/app/dashboard/WalkthroughConcierge";
-import { logoutAction } from "@/app/actions";
-import { MemberNavbar } from "./MemberNavbar";
 
 // Default resident profile for Flat B-402
 const INITIAL_RESIDENT: UserProfile = {
@@ -66,14 +51,14 @@ const INITIAL_RESIDENT: UserProfile = {
   notificationsEnabled: true
 };
 
-// Initial complaints filed by this resident
+// Core resident complaints data
 interface ResidentComplaint {
   id: string;
-  category: "Lift" | "Water" | "Parking" | "Cleaning" | "Electricity" | "Noise" | "Security";
+  category: "Lift" | "Water" | "Parking" | "Cleaning" | "Electricity" | "Noise" | "Security" | string;
   original_text: string;
   translated_text: string;
-  urgency: "Critical" | "High" | "Medium" | "Low";
-  status: "Needs Triage" | "In Progress" | "Resolved";
+  urgency: "Critical" | "High" | "Medium" | "Low" | string;
+  status: "Needs Triage" | "In Progress" | "Resolved" | string;
   created_at: string;
   resolution_note?: string | null;
   assigned_technician?: string;
@@ -118,543 +103,209 @@ const INITIAL_COMPLAINTS: ResidentComplaint[] = [
   }
 ];
 
-
-
 export default function MemberPortalPage() {
   const [profile, setProfile] = useState<UserProfile>(INITIAL_RESIDENT);
-  const [activeTab, setActiveTab] = useState<"overview" | "problem" | "profile" | "directory">("overview");
   const [complaints, setComplaints] = useState<ResidentComplaint[]>(INITIAL_COMPLAINTS);
-  
-  // Modals
-  const [showEditModal, setShowEditModal] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<"all" | "In Progress" | "Resolved">("all");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Modals state
   const [showProblemModal, setShowProblemModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
 
-  // Poll state
-  const [pollVoted, setPollVoted] = useState<"yes" | "no" | null>(null);
-  const [pollStats, setPollStats] = useState({ yes: 78, no: 22, totalVotes: 142 });
+  // Floating Toast
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Load profile from localStorage if modified earlier
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // Load profile and stored ratings from localStorage
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("nivara_user_profile");
-      if (saved) {
-        setProfile(JSON.parse(saved));
+      const savedProfile = localStorage.getItem("nivara_user_profile");
+      if (savedProfile) {
+        setProfile(JSON.parse(savedProfile));
+      }
+      const savedComplaints = localStorage.getItem("nivara_member_complaints");
+      if (savedComplaints) {
+        setComplaints(JSON.parse(savedComplaints));
       }
     } catch (e) {
-      // Ignore
+      // Fallback
     }
   }, []);
+
+  const saveComplaints = (updated: ResidentComplaint[]) => {
+    setComplaints(updated);
+    try {
+      localStorage.setItem("nivara_member_complaints", JSON.stringify(updated));
+    } catch (e) {}
+  };
 
   const handleProfileUpdated = (updated: UserProfile) => {
     setProfile(updated);
     try {
       localStorage.setItem("nivara_user_profile", JSON.stringify(updated));
     } catch (e) {}
+    showToast("Profile details updated successfully!");
   };
-
-
 
   const handleRateComplaint = (complaintId: string, rating: number) => {
-    setComplaints(prev => prev.map(c => c.id === complaintId ? { ...c, rating } : c));
+    const updated = complaints.map(c => c.id === complaintId ? { ...c, rating } : c);
+    saveComplaints(updated);
+    showToast(`Rated ${rating} ★. Feedback recorded!`);
   };
 
-  const handleVotePoll = (choice: "yes" | "no") => {
-    if (pollVoted) return;
-    setPollVoted(choice);
-    setPollStats(prev => ({
-      ...prev,
-      totalVotes: prev.totalVotes + 1,
-      yes: choice === "yes" ? Math.round(((prev.yes * prev.totalVotes / 100) + 1) / (prev.totalVotes + 1) * 100) : Math.round((prev.yes * prev.totalVotes / 100) / (prev.totalVotes + 1) * 100),
-      no: choice === "no" ? Math.round(((prev.no * prev.totalVotes / 100) + 1) / (prev.totalVotes + 1) * 100) : Math.round((prev.no * prev.totalVotes / 100) / (prev.totalVotes + 1) * 100)
-    }));
+  // Filter complaints
+  const filteredComplaints = useMemo(() => {
+    return complaints.filter(c => {
+      const matchesFilter = filterStatus === "all" ? true : c.status === filterStatus;
+      const matchesCategory = selectedCategory === "all" ? true : c.category.toLowerCase() === selectedCategory.toLowerCase();
+      const q = searchQuery.toLowerCase().trim();
+      const matchesQuery = !q || (
+        c.original_text.toLowerCase().includes(q) ||
+        c.translated_text.toLowerCase().includes(q) ||
+        c.category.toLowerCase().includes(q) ||
+        c.id.toLowerCase().includes(q) ||
+        (c.assigned_technician && c.assigned_technician.toLowerCase().includes(q))
+      );
+      return matchesFilter && matchesCategory && matchesQuery;
+    });
+  }, [complaints, filterStatus, selectedCategory, searchQuery]);
+
+  const activeCount = complaints.filter(c => c.status !== "Resolved").length;
+  const resolvedCount = complaints.filter(c => c.status === "Resolved").length;
+
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    complaints.forEach(c => {
+      if (c.category) set.add(c.category);
+    });
+    return Array.from(set);
+  }, [complaints]);
+
+  // Clean category pill styling & icon
+  const getCategoryConfig = (category: string) => {
+    switch (category.toLowerCase()) {
+      case "lift": 
+        return { icon: <Wrench size={12} strokeWidth={2.2} />, color: "#d97706", bg: "rgba(245, 158, 11, 0.1)", border: "rgba(245, 158, 11, 0.25)" };
+      case "water": 
+        return { icon: <Droplets size={12} strokeWidth={2.2} />, color: "#2563eb", bg: "rgba(37, 99, 235, 0.1)", border: "rgba(37, 99, 235, 0.25)" };
+      case "cleaning": 
+        return { icon: <Trash2 size={12} strokeWidth={2.2} />, color: "#059669", bg: "rgba(16, 185, 129, 0.1)", border: "rgba(16, 185, 129, 0.25)" };
+      case "parking": 
+        return { icon: <Car size={12} strokeWidth={2.2} />, color: "#7c3aed", bg: "rgba(124, 58, 237, 0.1)", border: "rgba(124, 58, 237, 0.25)" };
+      case "electricity": 
+        return { icon: <Zap size={12} strokeWidth={2.2} />, color: "#ca8a04", bg: "rgba(202, 138, 4, 0.1)", border: "rgba(202, 138, 4, 0.25)" };
+      default: 
+        return { icon: <AlertCircle size={12} strokeWidth={2.2} />, color: "#4b5563", bg: "rgba(107, 114, 128, 0.1)", border: "rgba(107, 114, 128, 0.25)" };
+    }
+  };
+
+  // Subtle urgency indicator
+  const getUrgencyConfig = (urgency: string) => {
+    switch (urgency.toLowerCase()) {
+      case "critical": 
+        return { label: "Critical", dotColor: "#ef4444", textColor: "#ef4444", bg: "rgba(239, 68, 68, 0.08)", border: "rgba(239, 68, 68, 0.25)" };
+      case "high": 
+        return { label: "High", dotColor: "#f97316", textColor: "#f97316", bg: "rgba(249, 115, 22, 0.08)", border: "rgba(249, 115, 22, 0.25)" };
+      case "medium": 
+        return { label: "Medium", dotColor: "#f59e0b", textColor: "#ca8a04", bg: "rgba(245, 158, 11, 0.08)", border: "rgba(245, 158, 11, 0.2)" };
+      default: 
+        return { label: "Low", dotColor: "#10b981", textColor: "#059669", bg: "rgba(16, 185, 129, 0.08)", border: "rgba(16, 185, 129, 0.2)" };
+    }
+  };
+
+  // Pipeline milestone steps
+  const PIPELINE_STEPS = [
+    { key: "reported", label: "Reported" },
+    { key: "triage", label: "AI Triaged" },
+    { key: "dispatch", label: "Dispatched" },
+    { key: "resolved", label: "Resolved" }
+  ];
+
+  const getStepState = (stepIndex: number, status: string) => {
+    // 0: Reported - Always done
+    if (stepIndex === 0) return "done";
+    // 1: AI Triaged - Always done for recorded tickets
+    if (stepIndex === 1) return "done";
+    // 2: Dispatched
+    if (stepIndex === 2) {
+      if (status === "Resolved") return "done";
+      if (status === "In Progress") return "active";
+      return "pending";
+    }
+    // 3: Resolved
+    if (stepIndex === 3) {
+      if (status === "Resolved") return "done";
+      return "pending";
+    }
+    return "pending";
   };
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}>
       
-      {/* ================= RESIDENT EXECUTIVE NAVBAR ================= */}
+      {/* Top Navbar */}
       <MemberNavbar
-        activeTab={activeTab}
-        onSelectTab={(tab) => setActiveTab(tab)}
         onOpenProblemModal={() => setShowProblemModal(true)}
         onOpenProfileModal={() => setShowEditModal(true)}
-        onOpenEmergencyModal={() => setShowEmergencyModal(true)}
         profile={profile}
-        unresolvedCount={complaints.filter(c => c.status !== "Resolved").length}
+        unresolvedCount={activeCount}
       />
 
-      {/* ================= MAIN RESIDENT PORTAL CONTENT ================= */}
-      <main className="container flex-1" style={{ padding: '1.75rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        
-        {/* Resident Welcome Banner */}
+      {/* Floating Toast Notification */}
+      {toastMessage && (
         <div 
-          id="operations-header"
-          className="glass-card"
           style={{
-            padding: '1.5rem',
+            position: 'fixed',
+            bottom: '1.75rem',
+            right: '1.75rem',
+            backgroundColor: 'var(--card)',
+            color: 'var(--foreground)',
+            border: '1px solid var(--primary)',
+            boxShadow: 'var(--shadow-lg)',
+            padding: '0.75rem 1.25rem',
+            borderRadius: 'var(--radius-md)',
+            zIndex: 100,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '1rem'
+            gap: '0.625rem',
+            fontSize: '0.875rem',
+            animation: 'fadeIn 0.2s ease'
           }}
         >
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-              <span className="badge badge-green" style={{ fontSize: '0.75rem' }}>
-                Flat {profile.flat} • {profile.wing}
-              </span>
-              <span className="badge badge-zinc font-mono" style={{ fontSize: '0.75rem' }}>
-                Intercom: {profile.intercom}
-              </span>
-            </div>
-            <h1 className="text-xl font-bold tracking-tight">
-              Welcome, {profile.name}
-            </h1>
-            <p className="text-sm text-muted mt-0.5">
-              View your filed complaints, generate gate passes, and view society notices.
-            </p>
-          </div>
-
-          {/* Quick Shortcuts */}
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button
-              onClick={() => setShowProblemModal(true)}
-              className="btn-primary"
-              style={{ padding: '0.5rem 1rem', fontSize: '0.8125rem' }}
-            >
-              <Send size={14} />
-              <span>Report Problem</span>
-            </button>
-            <button
-              onClick={() => setShowEditModal(true)}
-              className="btn-outline"
-              style={{ padding: '0.5rem 1rem', fontSize: '0.8125rem' }}
-            >
-              <User size={14} />
-              <span>Edit Profile</span>
-            </button>
-            <button
-              onClick={() => setShowEmergencyModal(true)}
-              className="btn-outline"
-              style={{
-                padding: '0.5rem 0.85rem',
-                fontSize: '0.8125rem',
-                color: '#ef4444'
-              }}
-            >
-              <ShieldAlert size={14} />
-              <span>Gate SOS</span>
-            </button>
-          </div>
+          <CheckCircle2 size={18} color="var(--primary)" />
+          <span>{toastMessage}</span>
         </div>
+      )}
 
-        {/* 4 Summary Stat Tiles */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
-          
-          <div className="glass-card p-4" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <span className="text-xs text-muted uppercase tracking-wider font-semibold">Active Issues</span>
-              <p className="text-2xl font-bold mt-1 font-mono text-amber">
-                {complaints.filter(c => c.status !== "Resolved").length}
-              </p>
-              <span className="text-xs text-muted">Awaiting completion</span>
-            </div>
-            <div style={{ width: '2.75rem', height: '2.75rem', borderRadius: '0.75rem', backgroundColor: 'rgba(245, 158, 11, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b' }}>
-              <Clock size={20} />
-            </div>
-          </div>
-
-          <div className="glass-card p-4" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <span className="text-xs text-muted uppercase tracking-wider font-semibold">Solved Issues</span>
-              <p className="text-2xl font-bold mt-1 font-mono text-green">
-                {complaints.filter(c => c.status === "Resolved").length}
-              </p>
-              <span className="text-xs text-muted">100% resolution rate</span>
-            </div>
-            <div style={{ width: '2.75rem', height: '2.75rem', borderRadius: '0.75rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
-              <CheckCircle2 size={20} />
-            </div>
-          </div>
-
-
-
-          <div className="glass-card p-4" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <span className="text-xs text-muted uppercase tracking-wider font-semibold">Registered Vehicles</span>
-              <p className="text-2xl font-bold mt-1 font-mono text-primary">2</p>
-              <span className="text-xs text-muted">1 Car + 1 Two-Wheeler</span>
-            </div>
-            <div style={{ width: '2.75rem', height: '2.75rem', borderRadius: '0.75rem', backgroundColor: 'rgba(139, 92, 246, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b5cf6' }}>
-              <Car size={20} />
-            </div>
-          </div>
-
-        </div>
-
-        {/* Tab Switcher for Member Portal */}
-        <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => setActiveTab("overview")}
-            className={`filter-tab ${activeTab === "overview" ? "filter-tab-active" : ""}`}
-          >
-            <Layers size={15} />
-            <span>My Complaints Feed</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("directory")}
-            className={`filter-tab ${activeTab === "directory" ? "filter-tab-active" : ""}`}
-          >
-            <PhoneCall size={15} />
-            <span>Emergency Directory</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("profile")}
-            className={`filter-tab ${activeTab === "profile" ? "filter-tab-active" : ""}`}
-          >
-            <User size={15} />
-            <span>My Apartment Profile</span>
-          </button>
-        </div>
-
-        {/* ================= TAB 1: OVERVIEW & COMPLAINTS ================= */}
-        {activeTab === "overview" && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 0.9fr', gap: '1.75rem' }} className="lg-grid-cols-1">
+      {/* Main Content Area */}
+      <main className="container flex-1" style={{ padding: '1.75rem 1.25rem', maxWidth: '58rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        
+        {/* ================= COMPACT RESIDENT HEADER ================= */}
+        <section 
+          className="glass-card"
+          style={{
+            padding: '1.25rem 1.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+            border: '1px solid var(--border)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
             
-            {/* Left: Complaints List with Live Progress Timeline */}
-            <div id="triage-feed-container" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              
-              <div className="glass-card p-4 flex items-center justify-between">
-                <div>
-                  <h2 className="text-base font-semibold">My Reported Issues ({complaints.length})</h2>
-                  <p className="text-xs text-muted">Live AI classification, technician dispatch & resolution audit</p>
-                </div>
-                <button 
-                  onClick={() => setShowProblemModal(true)}
-                  className="btn-primary"
-                  style={{ fontSize: '0.8125rem', padding: '0.45rem 0.85rem' }}
-                >
-                  <Plus size={14} /> Send Problem
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {complaints.map((item) => (
-                  <div 
-                    key={item.id}
-                    className="glass-card p-5"
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '1rem',
-                      borderLeft: item.urgency === "Critical" 
-                        ? '4px solid #ef4444' 
-                        : item.urgency === "High" 
-                        ? '4px solid #f97316' 
-                        : '4px solid #10b981'
-                    }}
-                  >
-                    {/* Header Row */}
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                          #{item.id}
-                        </span>
-                        <span className={`badge ${
-                          item.urgency === "Critical" ? "badge-red" : item.urgency === "High" ? "badge-orange" : "badge-zinc"
-                        }`}>
-                          {item.urgency} Urgency
-                        </span>
-                        <span className="badge badge-zinc">
-                          {item.category}
-                        </span>
-                      </div>
-                      <span className="text-xs text-muted font-mono">{item.created_at}</span>
-                    </div>
-
-                    {/* Complaint Text */}
-                    <div>
-                      <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
-                        "{item.original_text}"
-                      </p>
-                      {item.translated_text && item.translated_text !== item.original_text && (
-                        <div style={{
-                          marginTop: '0.5rem',
-                          padding: '0.5rem 0.75rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'var(--muted)',
-                          fontSize: '0.8125rem',
-                          color: 'var(--muted-foreground)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem'
-                        }}>
-                          <Sparkles size={14} color="#38bdf8" />
-                          <span><strong>AI English Translation:</strong> {item.translated_text}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Live Progress Stepper */}
-                    <div style={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '0.75rem',
-                      padding: '0.85rem 1rem'
-                    }}>
-                      <div className="flex items-center justify-between text-xs font-semibold mb-2">
-                        <span style={{ color: '#10b981' }}>✓ Logged</span>
-                        <span style={{ color: '#10b981' }}>✓ AI Triaged</span>
-                        <span style={{ color: item.status !== "Needs Triage" ? '#10b981' : '#71717a' }}>
-                          {item.status !== "Needs Triage" ? "✓ Staff Dispatched" : "○ Awaiting Dispatch"}
-                        </span>
-                        <span style={{ color: item.status === "Resolved" ? '#10b981' : '#71717a' }}>
-                          {item.status === "Resolved" ? "✓ Resolved" : "○ In Progress"}
-                        </span>
-                      </div>
-
-                      {/* Progress bar */}
-                      <div style={{ height: '0.35rem', backgroundColor: 'var(--muted)', borderRadius: '9999px', overflow: 'hidden' }}>
-                        <div style={{
-                          height: '100%',
-                          backgroundColor: item.status === "Resolved" ? '#10b981' : '#f59e0b',
-                          width: item.status === "Resolved" ? '100%' : item.status === "In Progress" ? '75%' : '40%',
-                          transition: 'width 0.5s ease'
-                        }} />
-                      </div>
-
-                      {item.assigned_technician && (
-                        <div className="flex items-center gap-2 mt-2 text-xs text-muted">
-                          <Wrench size={12} color="#38bdf8" />
-                          <span>Assigned to: <strong style={{ color: 'var(--foreground)' }}>{item.assigned_technician}</strong></span>
-                        </div>
-                      )}
-
-                      {item.resolution_note && (
-                        <div style={{
-                          marginTop: '0.5rem',
-                          padding: '0.5rem 0.75rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                          border: '1px solid rgba(16, 185, 129, 0.25)',
-                          fontSize: '0.75rem',
-                          color: '#10b981'
-                        }}>
-                          <strong>Resolution Note:</strong> {item.resolution_note}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Rating row if resolved */}
-                    {item.status === "Resolved" && (
-                      <div className="flex items-center justify-between text-xs pt-1 border-top" style={{ borderTop: '1px solid var(--border)' }}>
-                        <span className="text-muted">Rate Committee Resolution:</span>
-                        <div className="flex items-center gap-1">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <button
-                              key={star}
-                              type="button"
-                              onClick={() => handleRateComplaint(item.id, star)}
-                              style={{
-                                color: (item.rating || 0) >= star ? '#eab308' : '#71717a',
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                padding: '0.15rem'
-                              }}
-                            >
-                              <Star size={16} fill={(item.rating || 0) >= star ? '#eab308' : 'none'} />
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                  </div>
-                ))}
-              </div>
-
-            </div>
-
-            {/* Right: Quick Actions & Society Poll */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              
-              {/* Send Problem Card Launcher */}
-              <div className="glass-card p-5" style={{ background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(14, 165, 233, 0.08) 100%)' }}>
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles size={18} color="#10b981" />
-                  <h3 className="text-base font-semibold">Report a Society Issue</h3>
-                </div>
-                <p className="text-xs text-muted mb-4">
-                  Speak in Hindi or type in English. AI instantly tags urgency, estimates response SLA, and pings the right supervisor.
-                </p>
-                <button
-                  onClick={() => setShowProblemModal(true)}
-                  className="btn-primary w-full"
-                  style={{ padding: '0.75rem', fontSize: '0.875rem' }}
-                >
-                  <Send size={15} />
-                  <span>Launch Complaint Reporter</span>
-                </button>
-              </div>
-
-              {/* Active Society Community Poll */}
-              <div className="glass-card p-5">
-                <div className="flex items-center gap-2 mb-2">
-                  <Vote size={18} color="#38bdf8" />
-                  <h3 className="text-base font-semibold">Resident Poll</h3>
-                  <span className="badge badge-zinc" style={{ fontSize: '0.625rem' }}>Active</span>
-                </div>
-                <p className="text-xs text-muted mb-3">
-                  <strong>Question:</strong> "Should we install dedicated EV 2-Wheeler / 4-Wheeler charging spots in Basement 2?"
-                </p>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <button
-                    onClick={() => handleVotePoll("yes")}
-                    disabled={!!pollVoted}
-                    style={{
-                      padding: '0.65rem 1rem',
-                      borderRadius: '0.5rem',
-                      backgroundColor: pollVoted === "yes" ? 'rgba(16, 185, 129, 0.2)' : 'var(--muted)',
-                      border: pollVoted === "yes" ? '1px solid #10b981' : '1px solid var(--border)',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      cursor: pollVoted ? 'default' : 'pointer'
-                    }}
-                  >
-                    <span style={{ fontSize: '0.8125rem', fontWeight: 600 }}>👍 Yes, install chargers</span>
-                    <span className="font-mono font-bold text-xs text-green">{pollStats.yes}%</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleVotePoll("no")}
-                    disabled={!!pollVoted}
-                    style={{
-                      padding: '0.65rem 1rem',
-                      borderRadius: '0.5rem',
-                      backgroundColor: pollVoted === "no" ? 'rgba(239, 68, 68, 0.2)' : 'var(--muted)',
-                      border: pollVoted === "no" ? '1px solid #ef4444' : '1px solid var(--border)',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      cursor: pollVoted ? 'default' : 'pointer'
-                    }}
-                  >
-                    <span style={{ fontSize: '0.8125rem', fontWeight: 600 }}>👎 No, prioritize other funds</span>
-                    <span className="font-mono font-bold text-xs text-red">{pollStats.no}%</span>
-                  </button>
-                </div>
-
-                <div className="flex justify-between items-center text-xs text-muted mt-3">
-                  <span>Total votes: {pollStats.totalVotes}</span>
-                  {pollVoted && <span className="text-green">✓ Your vote recorded</span>}
-                </div>
-              </div>
-
-              {/* Emergency Contacts Quick Box */}
-              <div className="glass-card p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold flex items-center gap-1.5">
-                    <PhoneCall size={16} color="#ef4444" />
-                    <span>Emergency Contacts</span>
-                  </h3>
-                  <button 
-                    onClick={() => setActiveTab("directory")}
-                    className="text-xs text-primary"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-                  >
-                    All numbers →
-                  </button>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.8125rem' }}>
-                  <div className="flex items-center justify-between p-2 rounded" style={{ backgroundColor: 'var(--muted)' }}>
-                    <span>Main Gate Security</span>
-                    <a href="tel:+919820100001" className="font-mono text-primary font-bold">Call 101</a>
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded" style={{ backgroundColor: 'var(--muted)' }}>
-                    <span>Lift Breakdown SOS</span>
-                    <a href="tel:18002664000" className="font-mono text-red font-bold">1800-LIFT</a>
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded" style={{ backgroundColor: 'var(--muted)' }}>
-                    <span>Electrician On Duty</span>
-                    <a href="tel:+919820100003" className="font-mono text-primary font-bold">Call 103</a>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-          </div>
-        )}
-
-        {/* ================= TAB 5: EMERGENCY DIRECTORY ================= */}
-        {activeTab === "directory" && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
-            
-            <div className="glass-card p-5">
-              <span className="badge badge-red mb-2">Gate Security</span>
-              <h3 className="text-base font-bold">Main Gate 1 & 2 Security Cabin</h3>
-              <p className="text-xs text-muted my-2">24x7 Intercom Ext: 101 • Mobile: +91 98201 00001</p>
-              <div className="flex gap-2 mt-4">
-                <a href="tel:+919820100001" className="btn-primary flex-1 text-center" style={{ padding: '0.5rem', fontSize: '0.8125rem', textDecoration: 'none' }}>
-                  <Phone size={14} /> Call Gate
-                </a>
-                <a href="https://wa.me/919820100001" target="_blank" rel="noreferrer" className="btn-outline flex-1 text-center" style={{ padding: '0.5rem', fontSize: '0.8125rem', textDecoration: 'none' }}>
-                  WhatsApp
-                </a>
-              </div>
-            </div>
-
-            <div className="glass-card p-5">
-              <span className="badge badge-amber mb-2">Emergency Breakdown</span>
-              <h3 className="text-base font-bold">Otis Elevator 24/7 Rescue</h3>
-              <p className="text-xs text-muted my-2">Immediate trapped passenger technician dispatch: 1800-266-4000</p>
-              <div className="flex gap-2 mt-4">
-                <a href="tel:18002664000" className="btn-primary flex-1 text-center" style={{ padding: '0.5rem', fontSize: '0.8125rem', backgroundColor: '#ef4444', textDecoration: 'none' }}>
-                  <Phone size={14} /> Emergency Call
-                </a>
-              </div>
-            </div>
-
-            <div className="glass-card p-5">
-              <span className="badge badge-blue mb-2">Maintenance</span>
-              <h3 className="text-base font-bold">Society Plumber & Water Line</h3>
-              <p className="text-xs text-muted my-2">Suresh (Duty: 8 AM - 8 PM) • Intercom Ext: 104</p>
-              <div className="flex gap-2 mt-4">
-                <a href="tel:+919820100004" className="btn-primary flex-1 text-center" style={{ padding: '0.5rem', fontSize: '0.8125rem', textDecoration: 'none' }}>
-                  <Phone size={14} /> Call Plumber
-                </a>
-              </div>
-            </div>
-
-            <div className="glass-card p-5">
-              <span className="badge badge-zinc mb-2">Administration</span>
-              <h3 className="text-base font-bold">Society Estate Manager</h3>
-              <p className="text-xs text-muted my-2">Mr. Rajesh Kulkarni • Office: Clubhouse 1st Floor</p>
-              <div className="flex gap-2 mt-4">
-                <a href="tel:+919765432109" className="btn-outline flex-1 text-center" style={{ padding: '0.5rem', fontSize: '0.8125rem', textDecoration: 'none' }}>
-                  <Phone size={14} /> Call Manager
-                </a>
-              </div>
-            </div>
-
-          </div>
-        )}
-
-        {/* ================= TAB 6: APARTMENT PROFILE VIEW ================= */}
-        {activeTab === "profile" && (
-          <div className="glass-card p-6" style={{ maxWidth: '44rem' }}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div style={{
-                  width: '3.5rem',
-                  height: '3.5rem',
+            {/* Resident Profile Identity */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div 
+                style={{
+                  width: '3.25rem',
+                  height: '3.25rem',
                   borderRadius: '50%',
                   backgroundColor: profile.avatarColor || '#10b981',
                   color: '#ffffff',
@@ -662,59 +313,665 @@ export default function MemberPortalPage() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontWeight: 700,
-                  fontSize: '1.25rem'
-                }}>
-                  {profile.name.substring(0, 2).toUpperCase()}
+                  fontSize: '1.15rem',
+                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)',
+                  flexShrink: 0
+                }}
+              >
+                {profile.name?.substring(0, 2).toUpperCase() || "PD"}
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <h1 style={{ fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.02em', margin: 0 }}>
+                    {profile.name}
+                  </h1>
+                  <span 
+                    style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      padding: '0.15rem 0.5rem',
+                      borderRadius: '9999px',
+                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                      color: 'var(--primary)',
+                      border: '1px solid rgba(16, 185, 129, 0.25)'
+                    }}
+                  >
+                    Flat {profile.flat} • {profile.wing}
+                  </span>
+                  <span 
+                    style={{
+                      fontSize: '0.75rem',
+                      padding: '0.15rem 0.5rem',
+                      borderRadius: '9999px',
+                      backgroundColor: 'var(--muted)',
+                      color: 'var(--muted-foreground)',
+                      border: '1px solid var(--border)'
+                    }}
+                  >
+                    {profile.type}
+                  </span>
                 </div>
-                <div>
-                  <h2 className="text-xl font-bold">{profile.name}</h2>
-                  <p className="text-xs text-muted">Flat {profile.flat} • {profile.wing} • {profile.type}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem', fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>
+                  <span>Intercom: <strong style={{ color: 'var(--foreground)' }}>{profile.intercom}</strong></span>
+                  <span>•</span>
+                  <span>Emergency: <strong style={{ color: 'var(--foreground)' }}>{profile.emergencyContactName?.split(" ")[0]}</strong></span>
                 </div>
               </div>
-              <button 
-                onClick={() => setShowEditModal(true)}
-                className="btn-primary"
-                style={{ padding: '0.5rem 1rem', fontSize: '0.8125rem' }}
-              >
-                <User size={14} /> Edit Profile
-              </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', marginTop: '1.5rem' }}>
-              <div className="p-3 rounded" style={{ backgroundColor: 'var(--muted)' }}>
-                <span className="text-xs text-muted uppercase tracking-wider block">WhatsApp Number</span>
-                <span className="font-mono text-sm font-semibold">{profile.phone}</span>
-              </div>
-              <div className="p-3 rounded" style={{ backgroundColor: 'var(--muted)' }}>
-                <span className="text-xs text-muted uppercase tracking-wider block">Email Address</span>
-                <span className="text-sm font-semibold">{profile.email}</span>
-              </div>
-              <div className="p-3 rounded" style={{ backgroundColor: 'var(--muted)' }}>
-                <span className="text-xs text-muted uppercase tracking-wider block">4-Wheeler Car Plate</span>
-                <span className="font-mono text-sm font-semibold">{profile.vehicleCar || "None"}</span>
-              </div>
-              <div className="p-3 rounded" style={{ backgroundColor: 'var(--muted)' }}>
-                <span className="text-xs text-muted uppercase tracking-wider block">2-Wheeler Bike Plate</span>
-                <span className="font-mono text-sm font-semibold">{profile.vehicleBike || "None"}</span>
-              </div>
-              <div className="p-3 rounded" style={{ backgroundColor: 'var(--muted)' }}>
-                <span className="text-xs text-muted uppercase tracking-wider block">Emergency Contact</span>
-                <span className="text-sm font-semibold">{profile.emergencyContactName}</span>
-                <span className="font-mono text-xs text-muted block">{profile.emergencyContactPhone}</span>
-              </div>
-              <div className="p-3 rounded" style={{ backgroundColor: 'var(--muted)' }}>
-                <span className="text-xs text-muted uppercase tracking-wider block">Intercom Number</span>
-                <span className="font-mono text-sm font-semibold">{profile.intercom}</span>
-              </div>
+            {/* Quick Actions */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => setShowProblemModal(true)}
+                className="btn-primary"
+                style={{ padding: '0.55rem 1.15rem', fontSize: '0.8125rem', fontWeight: 600 }}
+              >
+                <Plus size={15} strokeWidth={2.5} />
+                <span>New Complaint</span>
+              </button>
+
+              <button
+                onClick={() => setShowEmergencyModal(true)}
+                className="btn-outline"
+                style={{
+                  padding: '0.55rem 0.85rem',
+                  fontSize: '0.8125rem',
+                  color: '#ef4444',
+                  borderColor: 'rgba(239, 68, 68, 0.25)'
+                }}
+                title="Trigger Emergency Gate Siren"
+              >
+                <ShieldAlert size={15} />
+                <span>Gate SOS</span>
+              </button>
+
+              <button
+                onClick={() => setShowEditModal(true)}
+                className="btn-outline"
+                style={{ padding: '0.55rem 0.75rem', fontSize: '0.8125rem' }}
+                title="Edit Flat & Profile Info"
+              >
+                <Edit3 size={14} />
+              </button>
             </div>
+          </div>
+
+          {/* Quick Metrics Bar inside Header */}
+          <div 
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.75rem', 
+              paddingTop: '0.875rem', 
+              borderTop: '1px solid var(--border)',
+              flexWrap: 'wrap'
+            }}
+          >
+            <div 
+              onClick={() => setFilterStatus("all")}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                fontSize: '0.8125rem',
+                cursor: 'pointer',
+                padding: '0.25rem 0.65rem',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: filterStatus === "all" ? 'var(--muted)' : 'transparent',
+                fontWeight: filterStatus === "all" ? 600 : 500
+              }}
+            >
+              <span style={{ color: 'var(--muted-foreground)' }}>Total Tickets:</span>
+              <span className="font-mono font-bold">{complaints.length}</span>
+            </div>
+
+            <div 
+              onClick={() => setFilterStatus("In Progress")}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                fontSize: '0.8125rem',
+                cursor: 'pointer',
+                padding: '0.25rem 0.65rem',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: filterStatus === "In Progress" ? 'rgba(245, 158, 11, 0.12)' : 'transparent',
+                fontWeight: filterStatus === "In Progress" ? 600 : 500,
+                color: filterStatus === "In Progress" ? '#d97706' : 'inherit'
+              }}
+            >
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#f59e0b', display: 'inline-block' }} />
+              <span style={{ color: 'var(--muted-foreground)' }}>Active:</span>
+              <span className="font-mono font-bold" style={{ color: '#d97706' }}>{activeCount}</span>
+            </div>
+
+            <div 
+              onClick={() => setFilterStatus("Resolved")}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                fontSize: '0.8125rem',
+                cursor: 'pointer',
+                padding: '0.25rem 0.65rem',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: filterStatus === "Resolved" ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
+                fontWeight: filterStatus === "Resolved" ? 600 : 500,
+                color: filterStatus === "Resolved" ? '#059669' : 'inherit'
+              }}
+            >
+              <CheckCircle2 size={13} color="#10b981" />
+              <span style={{ color: 'var(--muted-foreground)' }}>Resolved:</span>
+              <span className="font-mono font-bold" style={{ color: '#059669' }}>{resolvedCount}</span>
+            </div>
+          </div>
+        </section>
+
+        {/* ================= CONTROLS & FILTER ROW ================= */}
+        <section 
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.875rem'
+          }}
+        >
+          {/* Status Tabs */}
+          <div style={{ display: 'flex', gap: '0.35rem', backgroundColor: 'var(--muted)', padding: '0.25rem', borderRadius: 'var(--radius-md)' }}>
+            <button
+              onClick={() => setFilterStatus("all")}
+              className={`filter-tab ${filterStatus === "all" ? "filter-tab-active" : ""}`}
+              style={{ padding: '0.35rem 0.75rem', fontSize: '0.8125rem' }}
+            >
+              All Tickets ({complaints.length})
+            </button>
+            <button
+              onClick={() => setFilterStatus("In Progress")}
+              className={`filter-tab ${filterStatus === "In Progress" ? "filter-tab-active" : ""}`}
+              style={{ padding: '0.35rem 0.75rem', fontSize: '0.8125rem' }}
+            >
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+              In Progress ({activeCount})
+            </button>
+            <button
+              onClick={() => setFilterStatus("Resolved")}
+              className={`filter-tab ${filterStatus === "Resolved" ? "filter-tab-active" : ""}`}
+              style={{ padding: '0.35rem 0.75rem', fontSize: '0.8125rem' }}
+            >
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+              Resolved ({resolvedCount})
+            </button>
+          </div>
+
+          {/* Search Field */}
+          <div style={{ position: 'relative', width: '18rem' }} className="md-w-full">
+            <Search size={14} className="text-muted" style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} />
+            <input 
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Filter by keyword, tech, id..."
+              className="input-field"
+              style={{ paddingLeft: '2.25rem', paddingRight: searchQuery ? '2rem' : '0.85rem', height: '2.25rem', fontSize: '0.8125rem' }}
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery("")}
+                style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted-foreground)' }}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        </section>
+
+        {/* Category Filter Chips */}
+        {categories.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontWeight: 600 }}>Category:</span>
+            <button
+              onClick={() => setSelectedCategory("all")}
+              style={{
+                fontSize: '0.75rem',
+                padding: '0.2rem 0.6rem',
+                borderRadius: '9999px',
+                border: '1px solid',
+                borderColor: selectedCategory === "all" ? 'var(--primary)' : 'var(--border)',
+                backgroundColor: selectedCategory === "all" ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
+                color: selectedCategory === "all" ? 'var(--primary)' : 'var(--muted-foreground)',
+                fontWeight: selectedCategory === "all" ? 600 : 500,
+                cursor: 'pointer'
+              }}
+            >
+              All
+            </button>
+            {categories.map(cat => {
+              const cfg = getCategoryConfig(cat);
+              const isSelected = selectedCategory.toLowerCase() === cat.toLowerCase();
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(isSelected ? "all" : cat)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    fontSize: '0.75rem',
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: '9999px',
+                    border: '1px solid',
+                    borderColor: isSelected ? cfg.color : 'var(--border)',
+                    backgroundColor: isSelected ? cfg.bg : 'transparent',
+                    color: isSelected ? cfg.color : 'var(--muted-foreground)',
+                    fontWeight: isSelected ? 600 : 500,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {cfg.icon}
+                  <span>{cat}</span>
+                </button>
+              );
+            })}
           </div>
         )}
 
+        {/* ================= SLEEK LINEAR TICKET FEED ================= */}
+        <section style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {filteredComplaints.map((item) => {
+            const catConfig = getCategoryConfig(item.category);
+            const urgencyConfig = getUrgencyConfig(item.urgency);
+            const isResolved = item.status === "Resolved";
+
+            return (
+              <div 
+                key={item.id}
+                className="glass-card"
+                style={{
+                  padding: '1.25rem 1.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1rem',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-lg)',
+                  transition: 'all 0.2s ease',
+                  boxShadow: 'var(--shadow-sm)'
+                }}
+              >
+                {/* 1. Header Row: Category, ID, Priority & Status */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  
+                  {/* Left: Category Pill + Ticket ID + Priority Indicator */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    
+                    {/* Category Pill */}
+                    <span 
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        padding: '0.2rem 0.55rem',
+                        borderRadius: 'var(--radius-sm)',
+                        backgroundColor: catConfig.bg,
+                        color: catConfig.color,
+                        border: `1px solid ${catConfig.border}`,
+                        fontSize: '0.75rem',
+                        fontWeight: 600
+                      }}
+                    >
+                      {catConfig.icon}
+                      {item.category}
+                    </span>
+
+                    {/* Ticket ID */}
+                    <span 
+                      className="font-mono" 
+                      style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--muted-foreground)',
+                        fontWeight: 600
+                      }}
+                    >
+                      #{item.id}
+                    </span>
+
+                    {/* Urgency Dot & Label */}
+                    <span 
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: 'var(--radius-sm)',
+                        backgroundColor: urgencyConfig.bg,
+                        color: urgencyConfig.textColor,
+                        border: `1px solid ${urgencyConfig.border}`,
+                        fontSize: '0.6875rem',
+                        fontWeight: 600
+                      }}
+                    >
+                      <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: urgencyConfig.dotColor }} />
+                      {urgencyConfig.label}
+                    </span>
+                  </div>
+
+                  {/* Right: Timestamp & Status Badge */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                      {item.created_at}
+                    </span>
+
+                    {isResolved ? (
+                      <span 
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.2rem 0.65rem',
+                          borderRadius: '9999px',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                          color: '#059669',
+                          border: '1px solid rgba(16, 185, 129, 0.25)'
+                        }}
+                      >
+                        <Check size={12} strokeWidth={2.5} />
+                        Resolved
+                      </span>
+                    ) : (
+                      <span 
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.2rem 0.65rem',
+                          borderRadius: '9999px',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                          color: '#d97706',
+                          border: '1px solid rgba(245, 158, 11, 0.25)'
+                        }}
+                      >
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#f59e0b', animation: 'pulse 1.8s infinite' }} />
+                        In Progress
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. Main Title (AI English Summary) */}
+                <div>
+                  <h2 
+                    style={{ 
+                      fontSize: '0.975rem', 
+                      fontWeight: 600, 
+                      color: 'var(--foreground)', 
+                      margin: 0, 
+                      lineHeight: 1.45 
+                    }}
+                  >
+                    {item.translated_text || item.original_text}
+                  </h2>
+
+                  {/* Clean Original Resident Quote (if translated/different) */}
+                  {item.original_text && item.original_text !== item.translated_text && (
+                    <div 
+                      style={{
+                        display: 'flex',
+                        alignItems: 'baseline',
+                        gap: '0.45rem',
+                        marginTop: '0.35rem',
+                        fontSize: '0.8125rem',
+                        color: 'var(--muted-foreground)'
+                      }}
+                    >
+                      <Quote size={12} style={{ flexShrink: 0, opacity: 0.6, transform: 'rotate(180deg)' }} />
+                      <span style={{ fontStyle: 'italic' }}>"{item.original_text}"</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Linear Milestone Pipeline (Zero Clutter Stepper) */}
+                <div 
+                  style={{
+                    padding: '0.75rem 0',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', width: '100%', position: 'relative' }}>
+                    {PIPELINE_STEPS.map((step, idx) => {
+                      const state = getStepState(idx, item.status);
+                      const isLast = idx === PIPELINE_STEPS.length - 1;
+
+                      return (
+                        <div 
+                          key={step.key} 
+                          style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            flex: isLast ? '0 0 auto' : 1 
+                          }}
+                        >
+                          {/* Step Node */}
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                            <div 
+                              style={{
+                                width: '1.35rem',
+                                height: '1.35rem',
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.625rem',
+                                fontWeight: 700,
+                                zIndex: 2,
+                                transition: 'all 0.3s ease',
+                                backgroundColor: state === "done" 
+                                  ? '#10b981' 
+                                  : state === "active" 
+                                  ? 'rgba(245, 158, 11, 0.15)' 
+                                  : 'var(--muted)',
+                                color: state === "done" ? '#ffffff' : state === "active" ? '#d97706' : 'var(--muted-foreground)',
+                                border: state === "done" 
+                                  ? '1px solid #10b981' 
+                                  : state === "active" 
+                                  ? '2px solid #f59e0b' 
+                                  : '1px solid var(--border)'
+                              }}
+                            >
+                              {state === "done" ? (
+                                <Check size={10} strokeWidth={3} />
+                              ) : state === "active" ? (
+                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+                              ) : (
+                                <span style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: 'var(--muted-foreground)' }} />
+                              )}
+                            </div>
+
+                            {/* Node Label Below */}
+                            <span 
+                              style={{
+                                position: 'absolute',
+                                top: '1.6rem',
+                                fontSize: '0.6875rem',
+                                whiteSpace: 'nowrap',
+                                fontWeight: state === "done" || state === "active" ? 600 : 500,
+                                color: state === "done" 
+                                  ? 'var(--foreground)' 
+                                  : state === "active" 
+                                  ? '#d97706' 
+                                  : 'var(--muted-foreground)'
+                              }}
+                            >
+                              {step.label}
+                            </span>
+                          </div>
+
+                          {/* Connecting Bar */}
+                          {!isLast && (
+                            <div 
+                              style={{
+                                flex: 1,
+                                height: '2px',
+                                margin: '0 0.4rem',
+                                backgroundColor: state === "done" 
+                                  ? (getStepState(idx + 1, item.status) === "done" ? '#10b981' : '#f59e0b') 
+                                  : 'var(--border)',
+                                borderRadius: '9999px',
+                                transition: 'all 0.3s ease'
+                              }}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Spacer for step labels */}
+                  <div style={{ height: '0.75rem' }} />
+                </div>
+
+                {/* 4. Footer Strip: Technician, Audit Note & Rating */}
+                <div 
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '0.75rem',
+                    paddingTop: '0.75rem',
+                    borderTop: '1px solid var(--border)'
+                  }}
+                >
+                  {/* Left: Assigned Staff or Resolution Audit */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', fontSize: '0.75rem' }}>
+                    {item.assigned_technician && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--muted-foreground)' }}>
+                        <Wrench size={12} color="var(--primary)" />
+                        <span>Assigned Staff: <strong style={{ color: 'var(--foreground)' }}>{item.assigned_technician}</strong></span>
+                      </div>
+                    )}
+
+                    {item.resolution_note && (
+                      <div 
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: 'var(--radius-sm)',
+                          backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                          color: '#059669',
+                          border: '1px solid rgba(16, 185, 129, 0.2)'
+                        }}
+                      >
+                        <CheckCircle2 size={12} />
+                        <span>{item.resolution_note}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right: Star Rating on Resolved */}
+                  {isResolved && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem' }}>
+                      <span style={{ color: 'var(--muted-foreground)' }}>Rate Service:</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => handleRateComplaint(item.id, star)}
+                            style={{
+                              color: (item.rating || 0) >= star ? '#eab308' : 'var(--muted-foreground)',
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: '0.1rem',
+                              transition: 'transform 0.15s ease'
+                            }}
+                            title={`Rate ${star} star`}
+                          >
+                            <Star size={14} fill={(item.rating || 0) >= star ? '#eab308' : 'none'} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+
+              </div>
+            );
+          })}
+
+          {/* Empty State */}
+          {filteredComplaints.length === 0 && (
+            <div 
+              className="glass-card" 
+              style={{
+                padding: '3rem 1.5rem',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.75rem',
+                border: '1px solid var(--border)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '3rem',
+                  height: '3rem',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--primary)'
+                }}
+              >
+                <CheckCircle2 size={24} />
+              </div>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: 0 }}>No Complaints Found</h3>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', maxWidth: '24rem', margin: 0 }}>
+                {searchQuery || selectedCategory !== "all" || filterStatus !== "all"
+                  ? "No tickets match your selected filters. Try clearing your search or filter tags."
+                  : "All society maintenance tasks for your unit are currently clear."}
+              </p>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                {(searchQuery || selectedCategory !== "all" || filterStatus !== "all") && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery("");
+                      setSelectedCategory("all");
+                      setFilterStatus("all");
+                    }}
+                    className="btn-outline"
+                    style={{ fontSize: '0.8125rem' }}
+                  >
+                    Reset Filters
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowProblemModal(true)}
+                  className="btn-primary"
+                  style={{ fontSize: '0.8125rem' }}
+                >
+                  <Plus size={14} />
+                  <span>Submit New Ticket</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+
       </main>
 
-      {/* ================= MODALS & CHARACTER CONCIERGE ================= */}
-
-      {/* 1. Send Problem Modal */}
+      {/* ================= MODALS ================= */}
       <SendProblemModal
         isOpen={showProblemModal}
         onClose={() => setShowProblemModal(false)}
@@ -730,35 +987,21 @@ export default function MemberPortalPage() {
             created_at: "Just now",
             assigned_technician: "Triaging by AI engine..."
           };
-          setComplaints([formatted, ...complaints]);
-          setActiveTab("overview");
+          saveComplaints([formatted, ...complaints]);
+          showToast("Issue submitted & AI triaged!");
         }}
       />
 
-      {/* 2. Edit Profile Modal */}
       <EditProfileModal
         isOpen={showEditModal}
         onClose={() => setShowEditModal(false)}
         onProfileUpdated={handleProfileUpdated}
       />
 
-      {/* 3. Emergency SOS Modal */}
       <EmergencySOSModal
         isOpen={showEmergencyModal}
         onClose={() => setShowEmergencyModal(false)}
         userFlat={profile.flat}
-      />
-
-
-
-      {/* 5. Kai AI Concierge Mascot with Interactive Walkthrough */}
-      <WalkthroughConcierge
-        onOpenSendProblem={() => setShowProblemModal(true)}
-        onOpenEditProfile={() => setShowEditModal(true)}
-        onSwitchTab={(tab) => {
-          if (tab === "triage") setActiveTab("overview");
-          else if (tab === "sos") setShowEmergencyModal(true);
-        }}
       />
 
     </div>

@@ -84,7 +84,16 @@ export function DashboardNavbar({
 
   return (
     <>
-      <header className="glass-header" style={{ height: '3.75rem', width: '100%' }}>
+      <header 
+        className="glass-header" 
+        style={{ 
+          height: '3.75rem', 
+          width: '100%', 
+          position: 'sticky', 
+          top: 0, 
+          zIndex: 50 
+        }}
+      >
         <div className="container flex items-center justify-between h-full" style={{ gap: '0.75rem' }}>
           
           {/* Left: Branding & Status */}

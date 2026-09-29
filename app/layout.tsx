@@ -10,6 +10,8 @@ export const metadata: Metadata = {
   description: "AI-powered complaint triage dashboard for housing societies.",
 };
 
+import { ClientFooter } from "./ClientFooter";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -18,14 +20,10 @@ export default function RootLayout({
   return (
     <html lang="en" className="light">
       <body className={`${inter.variable} ${spaceMono.variable} antialiased min-h-screen flex flex-col`}>
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col">
           {children}
         </div>
-        <footer className="mt-auto py-6 border-t border-white/40 text-center text-xs text-zinc-500 flex justify-center gap-4">
-          <span>&copy; {new Date().getFullYear()} Society Triage</span>
-          <a href="/terms" className="hover:text-zinc-800 transition-colors">Terms</a>
-          <a href="/privacy" className="hover:text-zinc-800 transition-colors">Privacy</a>
-        </footer>
+        <ClientFooter />
       </body>
     </html>
   );
